@@ -74,3 +74,25 @@ This file is graded. Each entry records what was done, why, and what was rejecte
 - Corrected `_ENTROPY_VALUE_RE` in `security.py`: original character class was limited to alphanumeric + base64 symbols, failing to catch tokens containing punctuation like `#`, `$`, `@`. Changed to non-whitespace value boundary
 - Corrected `tmp_project` fixture in `conftest.py` by adding `poetry.lock` so that clean project fixture yields strictly 0 findings
 - Corrected double invocation of `finalize()` between `runner.py` and `cli.py`
+
+
+---
+
+## Entry 3 — 2026-11-17T21:55:00+05:30 — Audit & False-Positive Tuning
+
+**Prompt summary:** Audit build against Prompt A via pytest and `looseend scan .`, verify items 1-6, output pass/fail checklist with one-line fixes, and fix failures.
+
+**What was done:**
+- Audited all Prompt A requirements (scaffold, models, engine, analyzers, tests, clean fixture, AI_LOG.md, commits)
+- Ran `looseend scan .` on the repository itself to evaluate self-scanning and false positives
+- Tuned `_ENTROPY_VALUE_RE` in `security.py` to prevent code expressions containing parentheses or commas from falsely triggering SEC002
+- Added `tests/test_runner.py` providing test coverage for `runner.py` (resolving GAP005)
+- Added repository hygiene files (`requirements.txt`, `poetry.lock`, `.github/workflows/ci.yml`)
+- Ran pytest: 75 passed, 0 failed
+
+**Decisions:**
+- Excluded code punctuation like `(`, `)` and `,` from entropy string scanning to distinguish high-entropy secret tokens from function call chains
+- Created dedicated unit tests for scan runner category/severity filters
+
+**Rejected/corrected:**
+- Corrected regex overmatch in `_ENTROPY_VALUE_RE` where non-whitespace pattern had matched code assignment RHS

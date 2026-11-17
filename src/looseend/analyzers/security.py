@@ -175,7 +175,7 @@ _ENTROPY_LANGS = frozenset({
     "env", "conf", "yaml", "json", "toml", "python", "javascript", "typescript",
 })
 _ENTROPY_VALUE_RE = re.compile(
-    r'(?:[:=]\s*["\']?|["\'])([^"\'\s]{20,200})["\']?'
+    r'(?:[:=]\s*["\']?|["\'])([A-Za-z0-9+/=_\-.~!@#$%^&*]{20,200})["\']?'
 )
 
 
