@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "looseend"
+version = "0.1.0"
+description = "Language-agnostic CLI agent that scans codebases for security issues, AI slop, and coding gaps"
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.10"
+keywords = ["security", "code-quality", "static-analysis"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+]
+
+[project.scripts]
+looseend = "looseend.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

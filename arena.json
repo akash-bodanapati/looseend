@@ -1,0 +1,9 @@
+{
+  "name": "LooseEnd",
+  "description": "Language-agnostic CLI agent that scans codebases for security issues, AI slop, and coding gaps. Zero dependencies, works offline.",
+  "track": "TODO: official track name unknown — check hackathon rules",
+  "repo_url": "TODO: set after pushing to public repo",
+  "demo_url": "TODO: set after recording demo",
+  "walkthrough_url": "TODO: set after recording walkthrough",
+  "entry_command": "looseend scan ."
+}
