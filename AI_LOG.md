@@ -96,3 +96,31 @@ This file is graded. Each entry records what was done, why, and what was rejecte
 
 **Rejected/corrected:**
 - Corrected regex overmatch in `_ENTROPY_VALUE_RE` where non-whitespace pattern had matched code assignment RHS
+
+
+---
+
+## Entry 4 — 2026-11-17T22:09:00+05:30 — CI Diagnosis, Python Matrix, and Build Cleanup
+
+**Prompt summary:** Diagnose and fix GitHub Actions failure (~16s), reproduce in clean venv, add Python 3.10+ matrix (3.10 and 3.12), remove poetry.lock, ensure requirements.txt lists only dev tools, confirm zero runtime dependencies, commit, push, and report.
+
+**Root cause:**
+- `.github/workflows/ci.yml` executed bare `pytest -q` instead of `python -m pytest -q`. In GitHub Actions `setup-python`, running via `python -m pytest` guarantees locating the pytest module installed by pip into the active runner's python site-packages.
+- The CI configuration lacked a multi-version test matrix for Python 3.10 and 3.12.
+- A synthetic `poetry.lock` had been added in an earlier step that conflicted with the setuptools build system.
+
+**What was done:**
+- Verified reproduction locally in a fresh venv: `pip install -e . pytest` followed by `python -m pytest -q` passed with 75 tests.
+- Updated `.github/workflows/ci.yml` with a matrix across `["3.10", "3.12"]`, installing via `pip install -e . pytest` and testing via `python -m pytest -q`.
+- Deleted `poetry.lock`.
+- Updated `src/looseend/analyzers/gap.py` to recognize `requirements.txt` / `requirements.lock` as valid pip lockfiles, eliminating the need for `poetry.lock` in setuptools projects.
+- Updated `tests/conftest.py` and `tests/test_gap.py` to remove `poetry.lock` references while keeping clean fixture findings at zero.
+- Confirmed `pyproject.toml` contains zero runtime dependencies.
+- Confirmed `requirements.txt` lists only dev tooling (`pytest==9.2.0`).
+
+**Decisions:**
+- Standardized all CI and local testing invocations on `python -m pytest -q`.
+- Recognized `requirements.txt` in GAP006 lockfile analysis for standard pip/setuptools ecosystems.
+
+**Rejected/corrected:**
+- Removed `poetry.lock` completely as Poetry is not part of the build system.

@@ -281,6 +281,7 @@ class GapAnalyzer(Analyzer):
         lockfiles = [
             "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
             "poetry.lock", "Pipfile.lock", "go.sum",
+            "requirements.txt", "requirements.lock", "requirements-lock.txt",
         ]
         if not any((root / lf).exists() for lf in lockfiles):
             yield self._make(

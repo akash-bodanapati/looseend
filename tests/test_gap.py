@@ -117,7 +117,7 @@ def test_gap006_all_hygiene_present_negative(tmp_path):
     (repo / "README.md").write_text("# Title\n")
     (repo / "LICENSE").write_text("MIT\n")
     (repo / ".gitignore").write_text("*.pyc\n")
-    (repo / "poetry.lock").write_text("# lock\n")
+    (repo / "requirements.txt").write_text("pytest==7.4.0\n")
     ci = repo / ".github" / "workflows"
     ci.mkdir(parents=True)
     (ci / "ci.yml").write_text("name: CI\n")

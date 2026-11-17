@@ -23,7 +23,6 @@ def tmp_project(tmp_path):
         "from clean.utils import add\n\n\ndef test_add():\n    assert add(1, 2) == 3\n"
     )
     (tmp_path / "requirements.txt").write_text("pytest==7.4.0\n")
-    (tmp_path / "poetry.lock").write_text("# lock\n")
     gh = tmp_path / ".github" / "workflows"
     gh.mkdir(parents=True)
     (gh / "ci.yml").write_text(

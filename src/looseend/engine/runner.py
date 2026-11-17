@@ -17,6 +17,7 @@ def run_scan(
     min_severity: Optional[Severity] = None,
     categories: Optional[list[Category]] = None,
 ) -> ScanResult:
+    root = root.resolve()
     result = ScanResult(root=str(root))
     min_idx = _SEV_ORDER.get(min_severity.value, 4) if min_severity else 4
 
