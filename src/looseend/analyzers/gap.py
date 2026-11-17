@@ -1,6 +1,7 @@
 """Gap analyzer: TODO/FIXME, bare except, swallowed errors, long functions, missing tests/files."""
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from typing import Iterator
@@ -21,6 +22,77 @@ _FUNC_START: dict[str, re.Pattern] = {
     "java": re.compile(r"^\s+(?:public|private|protected|static|final|\w+)\s+\w+\s+\w+\s*\("),
     "go": re.compile(r"^func\s+"),
 }
+
+
+def _has_runtime_deps(root: Path) -> bool:
+    """Check if project explicitly declares runtime production dependencies."""
+    pyproject = root / "pyproject.toml"
+    if pyproject.exists():
+        try:
+            content = pyproject.read_text(encoding="utf-8", errors="replace")
+            try:
+                import tomllib
+                data = tomllib.loads(content)
+                if data.get("project", {}).get("dependencies"):
+                    return True
+                poetry_deps = data.get("tool", {}).get("poetry", {}).get("dependencies", {})
+                if any(k.lower() != "python" for k in poetry_deps):
+                    return True
+            except Exception:
+                if re.search(r"^\s*dependencies\s*=\s*\[[^\]]+\]", content, re.MULTILINE):
+                    return True
+        except OSError:
+            pass
+
+    pkg_json = root / "package.json"
+    if pkg_json.exists():
+        try:
+            data = json.loads(pkg_json.read_text(encoding="utf-8", errors="replace"))
+            if data.get("dependencies"):
+                return True
+        except Exception:
+            pass
+
+    go_mod = root / "go.mod"
+    if go_mod.exists():
+        try:
+            for line in go_mod.read_text(encoding="utf-8", errors="replace").splitlines():
+                stripped = line.strip()
+                if stripped.startswith("require ") and not stripped.endswith("("):
+                    return True
+                if stripped and not stripped.startswith(("//", "module ", "go ", "require (", ")")) and " " in stripped:
+                    return True
+        except OSError:
+            pass
+
+    pom_xml = root / "pom.xml"
+    if pom_xml.exists():
+        try:
+            content = pom_xml.read_text(encoding="utf-8", errors="replace")
+            if "<dependency>" in content:
+                return True
+        except OSError:
+            pass
+
+    cargo_toml = root / "Cargo.toml"
+    if cargo_toml.exists():
+        try:
+            content = cargo_toml.read_text(encoding="utf-8", errors="replace")
+            if "[dependencies]" in content:
+                return True
+        except OSError:
+            pass
+
+    gemfile = root / "Gemfile"
+    if gemfile.exists():
+        try:
+            for line in gemfile.read_text(encoding="utf-8", errors="replace").splitlines():
+                if re.match(r'^\s*gem\s+["\']', line):
+                    return True
+        except OSError:
+            pass
+
+    return False
 
 
 class GapAnalyzer(Analyzer):
@@ -277,17 +349,18 @@ class GapAnalyzer(Analyzer):
                 "Add a CI workflow (GitHub Actions, Travis CI, CircleCI, etc.)",
             )
 
-        # Lockfile
-        lockfiles = [
-            "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
-            "poetry.lock", "Pipfile.lock", "go.sum",
-            "requirements.txt", "requirements.lock", "requirements-lock.txt",
-        ]
-        if not any((root / lf).exists() for lf in lockfiles):
-            yield self._make(
-                "GAP006", Severity.LOW, Confidence.MEDIUM,
-                rel_path, 1,
-                "No dependency lockfile found",
-                "lockfile",
-                "Add a lockfile (poetry.lock, package-lock.json, etc.)",
-            )
+        # Lockfile: only flag if the project declares runtime dependencies
+        if _has_runtime_deps(root):
+            lockfiles = [
+                "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
+                "poetry.lock", "Pipfile.lock", "go.sum",
+                "Cargo.lock", "Gemfile.lock",
+            ]
+            if not any((root / lf).exists() for lf in lockfiles):
+                yield self._make(
+                    "GAP006", Severity.LOW, Confidence.MEDIUM,
+                    rel_path, 1,
+                    "No dependency lockfile found for project with declared runtime dependencies",
+                    "lockfile",
+                    "Add a lockfile (poetry.lock, package-lock.json, Cargo.lock, etc.)",
+                )

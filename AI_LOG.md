@@ -124,3 +124,23 @@ This file is graded. Each entry records what was done, why, and what was rejecte
 
 **Rejected/corrected:**
 - Removed `poetry.lock` completely as Poetry is not part of the build system.
+
+
+---
+
+## Entry 5 — 2026-11-17T22:13:00+05:30 — Lockfile Rule Architecture Correction
+
+**Prompt summary:** Stop treating `requirements.txt` as a lockfile in GAP006. Flag missing lockfile only if runtime dependencies are declared (pyproject/package.json/etc.). Add positive and negative tests, verify self-scan stays clean for the right reason (zero runtime dependencies), log correction.
+
+**Correction & Root Cause:**
+- Previously, `requirements.txt` was added to `lockfiles` in `GAP006` as a workaround to satisfy the lockfile check for LooseEnd.
+- This was an incorrect heuristic: plain `requirements.txt` files are requirement specifications, not dependency lockfiles.
+- Corrected `GAP006` to inspect whether the project actually declares runtime dependencies via `_has_runtime_deps(root)` (`[project.dependencies]`, `dependencies` in `package.json`, `go.mod`, etc.). If a project has zero runtime dependencies (like LooseEnd), no lockfile is expected or required.
+- If runtime dependencies are declared, a genuine lockfile (`poetry.lock`, `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `Pipfile.lock`, `go.sum`, `Cargo.lock`, `Gemfile.lock`) must be present.
+
+**What was done:**
+- Implemented `_has_runtime_deps(root: Path)` in `gap.py`.
+- Removed `requirements.txt` from `lockfiles`.
+- Added `test_gap006_missing_lockfile_with_deps_positive` and `test_gap006_lockfile_present_negative` in `test_gap.py`.
+- Verified 77 tests pass via `python -m pytest -q`.
+- Verified `looseend scan .` self-scan does not flag GAP006 lockfile issues because LooseEnd declares zero runtime dependencies.

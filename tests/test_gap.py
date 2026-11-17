@@ -117,9 +117,41 @@ def test_gap006_all_hygiene_present_negative(tmp_path):
     (repo / "README.md").write_text("# Title\n")
     (repo / "LICENSE").write_text("MIT\n")
     (repo / ".gitignore").write_text("*.pyc\n")
-    (repo / "requirements.txt").write_text("pytest==7.4.0\n")
     ci = repo / ".github" / "workflows"
     ci.mkdir(parents=True)
     (ci / "ci.yml").write_text("name: CI\n")
     f = _run(repo, "dummy.py", "x = 1\n", root=repo)
     assert not any(x.rule_id == "GAP006" for x in f)
+
+
+def test_gap006_missing_lockfile_with_deps_positive(tmp_path):
+    repo = tmp_path / "app_with_deps"
+    repo.mkdir()
+    (repo / "README.md").write_text("# App\n")
+    (repo / "LICENSE").write_text("MIT\n")
+    (repo / ".gitignore").write_text("*.pyc\n")
+    ci = repo / ".github" / "workflows"
+    ci.mkdir(parents=True)
+    (ci / "ci.yml").write_text("name: CI\n")
+    # Declares runtime dependencies in pyproject.toml, but has only plain requirements.txt
+    (repo / "pyproject.toml").write_text(
+        '[project]\nname = "demo"\nversion = "0.1"\ndependencies = ["requests>=2.28"]\n'
+    )
+    (repo / "requirements.txt").write_text("requests==2.28.0\n")
+    f = _run(repo, "dummy.py", "x = 1\n", root=repo)
+    assert any(x.rule_id == "GAP006" and "lockfile" in x.message.lower() for x in f)
+
+
+def test_gap006_lockfile_present_negative(tmp_path):
+    repo = tmp_path / "app_with_lockfile"
+    repo.mkdir()
+    (repo / "README.md").write_text("# App\n")
+    (repo / "LICENSE").write_text("MIT\n")
+    (repo / ".gitignore").write_text("*.pyc\n")
+    ci = repo / ".github" / "workflows"
+    ci.mkdir(parents=True)
+    (ci / "ci.yml").write_text("name: CI\n")
+    (repo / "package.json").write_text('{"dependencies": {"express": "4.18.2"}}\n')
+    (repo / "package-lock.json").write_text('{"name": "app", "lockfileVersion": 3}\n')
+    f = _run(repo, "dummy.js", "const x = 1;\n", root=repo)
+    assert not any(x.rule_id == "GAP006" and "lockfile" in x.message.lower() for x in f)
