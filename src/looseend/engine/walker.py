@@ -154,14 +154,14 @@ def walk_files(
 
         for entry in entries:
             try:
-                lst = entry.stat(follow_symlinks=False)
+                lst = os.lstat(entry)
             except OSError:
                 continue
 
             if stat.S_ISLNK(lst.st_mode):
                 try:
                     real = entry.resolve()
-                    rst = real.stat()
+                    rst = os.stat(real)
                     inode = (rst.st_dev, rst.st_ino)
                     if inode in seen_inodes:
                         continue
@@ -171,13 +171,13 @@ def walk_files(
 
             rel = str(entry.relative_to(root))
 
-            if entry.is_dir(follow_symlinks=True):
+            if entry.is_dir():
                 if entry.name in ALWAYS_IGNORE_DIRS:
                     continue
                 if _matches_gitignore(rel, patterns):
                     continue
                 yield from _walk(entry)
-            elif entry.is_file(follow_symlinks=True):
+            elif entry.is_file():
                 if _matches_gitignore(rel, patterns):
                     continue
                 try:
