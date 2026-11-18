@@ -1,0 +1,4 @@
+
+# intentionally flawed benchmark fixtures
+examples/vulnerable-app/
+examples/bad_python.py

@@ -1,100 +1,139 @@
-"""LooseEnd CLI entry point."""
+"""LooseEnd command-line interface."""
 from __future__ import annotations
 
 import argparse
-import json
+import contextlib
+import os
 import sys
 from pathlib import Path
+from typing import Sequence
 
 from looseend.analyzers.gap import GapAnalyzer
 from looseend.analyzers.security import SecurityAnalyzer
 from looseend.analyzers.slop import SlopAnalyzer
+from looseend.baseline import apply_baseline, load_baseline
+from looseend.engine.analyzer import Analyzer
 from looseend.engine.runner import run_scan
-from looseend.models import Category, Severity
+from looseend.models import Category, ScanResult, Severity
+from looseend.reporters import FORMATS, SEVERITY_ORDER, render
 
-_COLORS = {
-    "critical": "\033[91m",
-    "high": "\033[31m",
-    "medium": "\033[33m",
-    "low": "\033[36m",
-    "info": "\033[90m",
-}
-_RESET = "\033[0m"
-_BOLD = "\033[1m"
+EXIT_CLEAN = 0
+EXIT_FINDINGS = 1
+EXIT_USAGE = 2
 
 
-def _c(text: str, severity: str) -> str:
-    if not sys.stdout.isatty():
-        return text
-    return f"{_COLORS.get(severity, '')}{text}{_RESET}"
+def build_analyzers(root: Path) -> list[Analyzer]:
+    """The default analyzer set, shared by the CLI and the benchmark."""
+    return [SecurityAnalyzer(), SlopAnalyzer(), GapAnalyzer(root=root)]
 
 
-def _format_text(result) -> str:
-    out: list[str] = []
-    findings = result.sorted_findings()
-    if not findings:
-        out.append("✓ No findings. Clean codebase!")
-    for f in findings:
-        sev = _c(f.severity.value.upper(), f.severity.value)
-        out.append(f"\n{_BOLD}[{f.rule_id}]{_RESET} {sev} — {f.file}:{f.line}")
-        out.append(f"  {f.message}")
-        if f.evidence:
-            out.append(f"  evidence: {f.evidence[:120]}")
-        if f.fix_hint:
-            out.append(f"  fix: {f.fix_hint}")
-    out.append(
-        f"\n── {result.files_scanned} files scanned · "
-        f"{len(result.findings)} findings · "
-        f"{result.files_skipped} skipped ──"
-    )
-    return "\n".join(out)
-
-
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="looseend",
         description="Scan a codebase for security issues, AI slop, and coding gaps.",
     )
     sub = parser.add_subparsers(dest="command")
 
-    scan_p = sub.add_parser("scan", help="Scan a directory or file")
-    scan_p.add_argument("path", nargs="?", default=".", help="Path to scan")
-    scan_p.add_argument("--format", choices=["text", "json"], default="text")
-    scan_p.add_argument(
+    scan = sub.add_parser("scan", help="Scan a directory or file")
+    scan.add_argument("path", nargs="?", default=".", help="Path to scan (default: .)")
+    scan.add_argument("--format", choices=FORMATS, default="text", help="Report format")
+    scan.add_argument(
+        "--min-severity",
         "--severity",
-        choices=["critical", "high", "medium", "low", "info"],
+        dest="min_severity",
+        choices=SEVERITY_ORDER,
         default="info",
+        help="Hide findings below this severity",
     )
-    scan_p.add_argument(
+    scan.add_argument(
+        "--fail-on",
+        choices=SEVERITY_ORDER + ("none",),
+        default="info",
+        help="Exit 1 if any finding is at or above this severity (default: info)",
+    )
+    scan.add_argument(
         "--category",
-        choices=["security", "slop", "gap"],
+        choices=[c.value for c in Category],
         action="append",
         dest="categories",
+        help="Only run this category (repeatable)",
     )
+    scan.add_argument("--baseline", help="JSON report or ID list; its findings are hidden")
+    scan.add_argument("--output", help="Write the report to this file instead of stdout")
+    scan.add_argument("--no-color", action="store_true", help="Disable ANSI colors")
+    return parser
 
-    args = parser.parse_args()
+
+def _fails(result: ScanResult, fail_on: str) -> bool:
+    if fail_on == "none":
+        return False
+    threshold = SEVERITY_ORDER.index(fail_on)
+    return any(SEVERITY_ORDER.index(f.severity.value) <= threshold for f in result.findings)
+
+
+def _use_color(args: argparse.Namespace) -> bool:
+    if args.no_color or args.output or "NO_COLOR" in os.environ:
+        return False
+    return sys.stdout.isatty()
+
+
+def _force_utf8() -> None:
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if reconfigure is not None and (sys.stdout.encoding or "").lower() != "utf-8":
+        with contextlib.suppress(ValueError, OSError):
+            reconfigure(encoding="utf-8")
+
+
+def _error(message: str) -> int:
+    print(f"error: {message}", file=sys.stderr)
+    return EXIT_USAGE
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = build_parser()
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as exc:
+        return exc.code if isinstance(exc.code, int) else EXIT_CLEAN
     if args.command is None:
         parser.print_help()
-        sys.exit(0)
+        return EXIT_CLEAN
 
+    _force_utf8()
     root = Path(args.path).resolve()
     if not root.exists():
-        print(f"error: path does not exist: {root}", file=sys.stderr)
-        sys.exit(1)
+        return _error(f"path does not exist: {root}")
 
-    min_severity = Severity(args.severity)
+    known: set[str] = set()
+    if args.baseline:
+        try:
+            known = load_baseline(Path(args.baseline))
+        except (OSError, ValueError) as exc:
+            return _error(f"cannot read baseline: {exc}")
+
     categories = [Category(c) for c in args.categories] if args.categories else None
+    result = run_scan(
+        root,
+        build_analyzers(root),
+        min_severity=Severity(args.min_severity),
+        categories=categories,
+    )
+    if known:
+        result, suppressed = apply_baseline(result, known)
+        print(f"{suppressed} baseline findings hidden", file=sys.stderr)
 
-    analyzers: list = [SecurityAnalyzer(), SlopAnalyzer(), GapAnalyzer(root=root)]
-    result = run_scan(root, analyzers, min_severity=min_severity, categories=categories)
-
-    if args.format == "json":
-        print(json.dumps(result.to_dict(), indent=2))
+    report = render(args.format, result, color=_use_color(args))
+    if args.output:
+        try:
+            Path(args.output).write_text(report + "\n", encoding="utf-8")
+        except OSError as exc:
+            return _error(f"cannot write report: {exc}")
+        print(f"report written to {args.output}", file=sys.stderr)
     else:
-        print(_format_text(result))
+        print(report)
 
-    sys.exit(0 if not result.findings else 1)
+    return EXIT_FINDINGS if _fails(result, args.fail_on) else EXIT_CLEAN
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
