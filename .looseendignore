@@ -2,3 +2,6 @@
 # intentionally flawed benchmark fixtures
 examples/vulnerable-app/
 examples/bad_python.py
+
+# intentionally vulnerable benchmark repo (seeded flaws, see tests/test_benchmark.py)
+examples/vulnerable-app/
