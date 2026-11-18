@@ -151,28 +151,7 @@ class GapAnalyzer(Analyzer):
         self._root = root.parent if (root is not None and root.is_file()) else root
         self._hygiene_done = False
 
-    def _make(
-        self,
-        rule_id: str,
-        severity: Severity,
-        confidence: Confidence,
-        rel_path: str,
-        line: int,
-        message: str,
-        evidence: str,
-        fix_hint: str,
-    ) -> Finding:
-        return Finding(
-            rule_id=rule_id,
-            category=Category.GAP,
-            severity=severity,
-            confidence=confidence,
-            file=rel_path,
-            line=line,
-            message=message,
-            evidence=evidence,
-            fix_hint=fix_hint,
-        )
+    
 
     def analyze(
         self,

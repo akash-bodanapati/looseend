@@ -89,29 +89,6 @@ class SlopAnalyzer(Analyzer):
         self._block_hashes: dict[str, list[tuple[str, int, int, int]]] = {}
         self._root: Path | None = None
 
-    def _make(
-        self,
-        rule_id: str,
-        severity: Severity,
-        confidence: Confidence,
-        rel_path: str,
-        line: int,
-        message: str,
-        evidence: str,
-        fix_hint: str,
-    ) -> Finding:
-        return Finding(
-            rule_id=rule_id,
-            category=Category.SLOP,
-            severity=severity,
-            confidence=confidence,
-            file=rel_path,
-            line=line,
-            message=message,
-            evidence=evidence,
-            fix_hint=fix_hint,
-        )
-
     def analyze(
         self,
         path: Path,

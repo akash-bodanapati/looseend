@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Iterator
 
-from looseend.models import Category, Finding
+from looseend.models import Category, Confidence, Finding, Severity
 
 _INLINE_IGNORE_RE = re.compile(r"looseend:\s*ignore(?:\[([^\]]*)\])?")
 
@@ -32,6 +32,28 @@ def should_ignore(line: int, rule_id: str, ignores: dict[int, set[str]]) -> bool
 
 class Analyzer(ABC):
     category: Category
+    def _make(
+        self,
+        rule_id: str,
+        severity: Severity,
+        confidence: Confidence,
+        rel_path: str,
+        line: int,
+        message: str,
+        evidence: str,
+        fix_hint: str,
+    ) -> Finding:
+        return Finding(
+            rule_id=rule_id,
+            category=self.category,
+            severity=severity,
+            confidence=confidence,
+            file=rel_path,
+            line=line,
+            message=message,
+            evidence=evidence,
+            fix_hint=fix_hint,
+        )
 
     @abstractmethod
     def analyze(
