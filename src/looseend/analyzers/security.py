@@ -163,6 +163,11 @@ _DANGEROUS: list[tuple[set[str], re.Pattern, Severity, str, str]] = [
      "Piping curl output to shell", "Download first, verify checksum, then execute"),
     ({"shell"}, re.compile(r"\bwget\b.*\|\s*(?:ba)?sh\b"), Severity.CRITICAL,
      "Piping wget output to shell", "Download first, verify checksum, then execute"),
+    ({"shell"}, re.compile(
+        r"\bcurl\b[^\n]*?\s(?:-[A-Za-z]*k[A-Za-z]*|--insecure)(?=\s|$)"
+        r"|\bwget\b[^\n]*?\s--no-check-certificate\b"),
+     Severity.HIGH, "TLS certificate verification disabled",
+     "Remove -k/--insecure/--no-check-certificate; trust the right CA bundle instead"),
 ]
 
 _ENV_FILE_NAMES = frozenset({

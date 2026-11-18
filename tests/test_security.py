@@ -173,3 +173,31 @@ def test_sec005_go_mod_positive(tmp_path):
 def test_sec005_pom_xml_positive(tmp_path):
     f = _run(tmp_path, "pom.xml", "<dependency><version>1.0.0-SNAPSHOT</version></dependency>\n")
     assert any(x.rule_id == "SEC005" for x in f)
+def test_sec003_curl_k(tmp_path):
+    f = _run(tmp_path, "deploy.sh", "curl -k https://x\n")
+    assert any(x.rule_id == "SEC003" for x in f)
+
+
+def test_sec003_curl_insecure(tmp_path):
+    f = _run(tmp_path, "deploy.sh", "curl --insecure https://x\n")
+    assert any(x.rule_id == "SEC003" for x in f)
+
+
+def test_sec003_curl_combined_flags(tmp_path):
+    f = _run(tmp_path, "deploy.sh", "curl -sSLk https://x\n")
+    assert any(x.rule_id == "SEC003" for x in f)
+
+
+def test_sec003_wget_no_check_certificate(tmp_path):
+    f = _run(tmp_path, "deploy.sh", "wget --no-check-certificate https://x\n")
+    assert any(x.rule_id == "SEC003" for x in f)
+
+
+def test_sec003_curl_safe_flags_clean(tmp_path):
+    f = _run(tmp_path, "deploy.sh", "curl -fsSL https://x\n")
+    assert not any(x.rule_id == "SEC003" for x in f)
+
+
+def test_sec003_curl_output_flag_clean(tmp_path):
+    f = _run(tmp_path, "deploy.sh", "curl -o out.txt https://x\n")
+    assert not any(x.rule_id == "SEC003" for x in f)
