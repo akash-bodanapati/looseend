@@ -66,6 +66,8 @@ def _get_declared_deps(root: Path) -> set[str]:
         deps.add(pkg)
 
     return deps
+
+
 _BOILERPLATE_LINES = frozenset({
     "pass", "return", "break", "continue", "else:", "try:", "finally:",
     "{", "}", ")", "]", "});", "};", "end", "fi", "done",
@@ -381,7 +383,7 @@ class SlopAnalyzer(Analyzer):
                     yield self._make(
                         "SLOP005", Severity.INFO, Confidence.MEDIUM,
                         rel_path, lineno,
-                        "Debug print() outside test/CLI",
+                        "Debug print() outside test/CLI",    # looseend: ignore[SLOP005]
                         line.strip()[:80],
                         "Replace with logger.debug() or remove",
                     )
