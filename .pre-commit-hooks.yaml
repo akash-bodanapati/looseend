@@ -1,0 +1,7 @@
+- id: looseend
+  name: LooseEnd
+  description: Scan for security issues, AI slop and coding gaps.
+  entry: looseend scan
+  language: python
+  pass_filenames: false
+  always_run: true
