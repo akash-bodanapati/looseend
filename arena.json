@@ -3,6 +3,7 @@
   "description": "Language-agnostic CLI agent that scans codebases for security issues, AI slop, and coding gaps. Zero runtime dependencies, works offline.",
   "track": "ai-triage",
   "repo_url": "https://github.com/akash-bodanapati/looseend",
+  "demo_url": "https://github.com/akash-bodanapati/looseend/blob/main/docs/WALKTHROUGH.md",
   "walkthrough_url": "https://github.com/akash-bodanapati/looseend/blob/main/docs/WALKTHROUGH.md",
   "entry_command": "looseend scan ."
 }
