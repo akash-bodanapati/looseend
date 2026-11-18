@@ -1,7 +1,7 @@
 {
-  "name": "LooseEnd",
+  "title": "LooseEnd",
   "description": "Language-agnostic CLI agent that scans codebases for security issues, AI slop, and coding gaps.",
   "track": "ai-triage",
-  "repo_url": "https://github.com/akash-bodanapati/looseend",
-  "entry_command": "looseend scan ."
+  "repo": "https://github.com/akash-bodanapati/looseend",
+  "repo_url": "https://github.com/akash-bodanapati/looseend"
 }
