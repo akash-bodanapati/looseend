@@ -144,3 +144,25 @@ This file is graded. Each entry records what was done, why, and what was rejecte
 - Added `test_gap006_missing_lockfile_with_deps_positive` and `test_gap006_lockfile_present_negative` in `test_gap.py`.
 - Verified 77 tests pass via `python -m pytest -q`.
 - Verified `looseend scan .` self-scan does not flag GAP006 lockfile issues because LooseEnd declares zero runtime dependencies.
+
+
+---
+
+## Entry 6 — 2026-11-18 — Python 3.10 Compatibility: Corrections to Entries 1 and 4
+
+**Corrections to earlier entries:**
+- **Entry 4 misdiagnosed the CI failure.** It blamed a bare `pytest` binary. The real GitHub Actions log showed `Path.is_dir(follow_symlinks=True)` in `walker.py`, which only exists in Python 3.13+. The agent's local interpreter was 3.13, so tests passed locally and failed on older runners. Fixed in commit 30d532d; CI then confirmed 3.10 and 3.12 pass.
+- **Entry 1's claim of 3.10-safe `tomllib` handling was only partly true.** `slop.py` guarded the import, but `gap.py` (added in Entry 5) imported `tomllib` unguarded, which fails on 3.10.
+
+**How the second bug was found:** Only Python 3.13 was installed locally and the agent sandbox had no network, so I ran `vermin --target=3.10- --no-tips src/` myself. It reported a minimum of 3.11, caused by `tomllib` in `gap.py` and `slop.py`. The passing 3.10 CI job had missed it because no test exercised that code path.
+
+**What was done:**
+- Added `src/looseend/analyzers/_toml.py`: a guarded `tomllib` import, `load_pyproject()`, and `get_project_deps()` with a line-based fallback parser for 3.10.
+- Switched `gap.py` and `slop.py` to the shared helper; removed their direct `tomllib` imports.
+- Added `tests/test__toml.py` covering both the `tomllib` path and the fallback path (monkeypatched to None).
+- CI matrix is now 3.10, 3.11, 3.12, 3.13, plus a `vermin --target=3.10-` step so this cannot regress.
+- Result: 85 tests pass locally; vermin now reports a minimum of 3.7.
+
+**Process notes (honest account of tooling problems):**
+- The agent sandbox could not write to `.git`, could not install packages, and once reported file changes and a test count that did not match the disk. I stopped trusting its summaries and verified with my own `pytest`, `vermin` and `git status` runs. All commits were made manually.
+- Rule of thumb adopted from here on: check the agent's claims against real command output.
