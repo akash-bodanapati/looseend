@@ -166,3 +166,33 @@ This file is graded. Each entry records what was done, why, and what was rejecte
 **Process notes (honest account of tooling problems):**
 - The agent sandbox could not write to `.git`, could not install packages, and once reported file changes and a test count that did not match the disk. I stopped trusting its summaries and verified with my own `pytest`, `vermin` and `git status` runs. All commits were made manually.
 - Rule of thumb adopted from here on: check the agent's claims against real command output.
+---
+
+---
+
+## Entry 7 — 2026-11-18T13:20 — Self-scan to zero: inline ignores did not apply to cross-file findings
+
+**Prompt summary:** Run LooseEnd on its own source and get it to 0 findings. The scan reported two SLOP003 (duplicate code block) findings, one each in `analyzers/gap.py:158` and `analyzers/slop.py:94`. Both were the identical `analyze()` signature that every analyzer must share, so neither was real duplicated logic.
+
+**What was done:**
+- Added `# looseend: ignore[SLOP003]` on the reported line in both files. The scan still reported 2 findings.
+- Checked the editor for an unsaved file and re-ran the scan. Still 2 findings, so the cause was not stale files.
+- Grepped for where ignores are applied. `parse_inline_ignores()` and `should_ignore()` were only called on findings from `analyze()` in `runner.py`.
+- Found the root cause: SLOP003 is emitted from `finalize()` (a second, cross-file pass), and the runner never filtered those findings through the ignore check.
+- Fixed `run_scan()` to store each file's ignore map (`file_ignores[rel_path]`) and apply `should_ignore` to `finalize()` findings.
+- Added two regression tests: `test_slop003_reported_without_ignore` (control, proves the duplicate is detected) and `test_inline_ignore_suppresses_slop003`.
+- Added a self-scan GitHub Action workflow (`looseend.yml`), `action.yml`, `.pre-commit-hooks.yaml`, a full README and `docs/WALKTHROUGH.md`.
+- Re-ran `vermin --no-tips src/` after the Entry 6 changes: minimum required version is 3.8 (Entry 6 recorded 3.7), still within the declared 3.10+ target.
+- Result: 152 tests passing (was 150), benchmark 34/34 at precision 1.00 and recall 1.00, self-scan 0 findings.
+
+**Decisions:**
+- Fixed the tool rather than suppressing the two findings in a baseline file. A baseline would have hidden a real bug that any user of inline ignores on cross-file rules would hit.
+- Kept the ignore on the first line of the duplicated block, matching where the finding is reported.
+- Kept the ignore on the shared `analyze()` signature because the duplication is the plugin interface by design.
+- Set the GitHub Action default `fail-on` to `high`, because the CLI default of `info` would fail every CI run on a TODO marker.
+
+**Rejected/corrected:**
+- The AI assistant first suggested moving the ignore comment to the `def analyze(` line. A screenshot showed the comments were already on the reported lines (158 and 94), so the suggestion was wrong and was not applied.
+- The AI assistant also suspected an unsaved file. That was not the cause.
+- The first regression test failed: it put the ignore comment in only one of two files, which changed that file's block hash so the pair no longer matched as duplicates. Replaced it with a pair of identical files plus a control test without the ignore.
+- Verified each hypothesis against the scanner's own output and the code instead of trusting the first guess, in line with the rule adopted in Entry 6.
