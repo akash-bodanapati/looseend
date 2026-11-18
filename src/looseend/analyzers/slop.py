@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from typing import Iterator
 
+from looseend.analyzers._toml import get_project_deps
 from looseend.engine.analyzer import Analyzer
 from looseend.models import Category, Confidence, Finding, Severity
 
@@ -59,22 +60,9 @@ def _get_declared_deps(root: Path) -> set[str]:
         except OSError:
             pass
 
-    pyproject = root / "pyproject.toml"
-    if pyproject.exists():
-        try:
-            try:
-                import tomllib  # type: ignore
-            except ImportError:
-                tomllib = None  # type: ignore
-            if tomllib is not None:
-                with open(pyproject, "rb") as f:
-                    data = tomllib.load(f)
-                project_deps = data.get("project", {}).get("dependencies", [])
-                for dep in project_deps:
-                    pkg = re.split(r"[>=<!@;#\s\[]", dep)[0].lower().replace("-", "_")
-                    deps.add(pkg)
-        except Exception:
-            pass
+    for dep in get_project_deps(root):
+        pkg = re.split(r"[>=<!@;#\s\[]", dep)[0].lower().replace("-", "_")
+        deps.add(pkg)
 
     return deps
 

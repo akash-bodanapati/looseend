@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 from typing import Iterator
 
+from looseend.analyzers._toml import load_pyproject
 from looseend.engine.analyzer import Analyzer
 from looseend.models import Category, Confidence, Finding, Severity
 
@@ -28,21 +29,20 @@ def _has_runtime_deps(root: Path) -> bool:
     """Check if project explicitly declares runtime production dependencies."""
     pyproject = root / "pyproject.toml"
     if pyproject.exists():
-        try:
-            content = pyproject.read_text(encoding="utf-8", errors="replace")
+        data = load_pyproject(root)
+        if data is not None:
+            if data.get("project", {}).get("dependencies"):
+                return True
+            poetry_deps = data.get("tool", {}).get("poetry", {}).get("dependencies", {})
+            if any(k.lower() != "python" for k in poetry_deps):
+                return True
+        else:  # Python 3.10 (no tomllib) or unparseable file
             try:
-                import tomllib
-                data = tomllib.loads(content)
-                if data.get("project", {}).get("dependencies"):
-                    return True
-                poetry_deps = data.get("tool", {}).get("poetry", {}).get("dependencies", {})
-                if any(k.lower() != "python" for k in poetry_deps):
-                    return True
-            except Exception:
-                if re.search(r"^\s*dependencies\s*=\s*\[[^\]]+\]", content, re.MULTILINE):
-                    return True
-        except OSError:
-            pass
+                content = pyproject.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                content = ""
+            if re.search(r"^\s*dependencies\s*=\s*\[[^\]]+\]", content, re.MULTILINE):
+                return True
 
     pkg_json = root / "package.json"
     if pkg_json.exists():
