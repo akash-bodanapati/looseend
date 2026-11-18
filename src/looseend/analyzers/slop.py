@@ -66,14 +66,25 @@ def _get_declared_deps(root: Path) -> set[str]:
         deps.add(pkg)
 
     return deps
+_BOILERPLATE_LINES = frozenset({
+    "pass", "return", "break", "continue", "else:", "try:", "finally:",
+    "{", "}", ")", "]", "});", "};", "end", "fi", "done",
+})
 
+
+def _is_boilerplate_window(window: list[str]) -> bool:
+    """True if a window is mostly short or trivial lines (not worth reporting)."""
+    short = sum(1 for ln in window if len(ln) < 15)
+    if short >= 4:
+        return True
+    return all(ln in _BOILERPLATE_LINES for ln in window)
 
 class SlopAnalyzer(Analyzer):
     category = Category.SLOP
 
     def __init__(self) -> None:
-        # For SLOP003 duplicate detection: hash -> list of (file, line)
-        self._block_hashes: dict[str, list[tuple[str, int]]] = {}
+        # SLOP003: window hash -> list of (file, filtered_start_idx, real_start_line, real_end_line)
+        self._block_hashes: dict[str, list[tuple[str, int, int, int]]] = {}
         self._root: Path | None = None
 
     def _make(
@@ -118,17 +129,36 @@ class SlopAnalyzer(Analyzer):
         yield from self._slop005(source, language, rel_path)
 
     def finalize(self) -> Iterator[Finding]:
-        """Yield SLOP003 duplicate block findings."""
+        """Yield one SLOP003 finding per duplicated block per file (overlapping windows merged)."""
+        # Group duplicated windows by file, keeping only hashes seen in 2+ files.
+        per_file: dict[str, list[tuple[int, int, int, str]]] = {}
         for block_hash, locations in self._block_hashes.items():
-            if len(locations) >= 2:
-                for file_path, lineno in locations:
-                    yield self._make(
-                        "SLOP003", Severity.LOW, Confidence.MEDIUM,
-                        file_path, lineno,
-                        f"Duplicate code block (appears in {len(locations)} locations)",
-                        f"Hash {block_hash[:8]}",
-                        "Extract duplicate block into a shared function or module",
-                    )
+            files = {loc[0] for loc in locations}
+            if len(files) < 2:
+                continue
+            for file_path, idx, real_start, real_end in locations:
+                per_file.setdefault(file_path, []).append((idx, real_start, real_end, block_hash))
+
+        for file_path in sorted(per_file):
+            entries = sorted(per_file[file_path])
+            # Merge windows whose filtered indexes are consecutive/overlapping (idx step <= 1).
+            merged: list[list] = []
+            for idx, real_start, real_end, block_hash in entries:
+                if merged and idx <= merged[-1][0] + 1:
+                    merged[-1][0] = idx
+                    merged[-1][2] = max(merged[-1][2], real_end)
+                else:
+                    merged.append([idx, real_start, real_end, block_hash])
+            for _idx, real_start, real_end, block_hash in merged:
+                length = real_end - real_start + 1
+                count = len({loc[0] for loc in self._block_hashes[block_hash]})
+                yield self._make(
+                    "SLOP003", Severity.LOW, Confidence.MEDIUM,
+                    file_path, real_start,
+                    f"Duplicate code block ({length} lines, appears in {count} files)",
+                    f"Hash {block_hash[:8]}",
+                    "Extract duplicate block into a shared function or module",
+                )
 
     def _slop001(self, source: str, language: str, rel_path: str) -> Iterator[Finding]:
         lines = source.splitlines()
@@ -277,22 +307,26 @@ class SlopAnalyzer(Analyzer):
                     )
 
     def _slop003_collect(self, source: str, rel_path: str) -> None:
-        """Collect 6-line block hashes for duplicate detection."""
-        lines = [re.sub(r"\s+", " ", l).strip().lower() for l in source.splitlines()]
-        lines = [l for l in lines if l]  # remove blank
+        """Collect 6-line window hashes, keeping real line numbers and skipping boilerplate."""
         window = 6
-        if len(lines) < window:
+        normalized: list[str] = []
+        real_lines: list[int] = []  # filtered index -> real 1-based line number
+        for real_no, raw in enumerate(source.splitlines(), 1):
+            ln = re.sub(r"\s+", " ", raw).strip().lower()
+            if ln:
+                normalized.append(ln)
+                real_lines.append(real_no)
+        if len(normalized) < window:
             return
-        for i in range(len(lines) - window + 1):
-            block = "\n".join(lines[i:i + window])
-            h = hashlib.md5(block.encode()).hexdigest()
-            if h not in self._block_hashes:
-                self._block_hashes[h] = []
-            # Only add if not already from this file at this line
-            existing_files = {loc[0] for loc in self._block_hashes[h]}
-            if rel_path not in existing_files:
-                self._block_hashes[h].append((rel_path, i + 1))
-
+        for i in range(len(normalized) - window + 1):
+            win = normalized[i:i + window]
+            if _is_boilerplate_window(win):
+                continue
+            h = hashlib.sha256("\n".join(win).encode()).hexdigest()
+            entry = (rel_path, i, real_lines[i], real_lines[i + window - 1])
+            bucket = self._block_hashes.setdefault(h, [])
+            if not any(loc[0] == rel_path and loc[1] == i for loc in bucket):
+                bucket.append(entry)
     def _slop004(self, source: str, language: str, rel_path: str) -> Iterator[Finding]:
         """Flag runs of 3+ consecutive commented-out code lines."""
         marker = _COMMENT_MARKERS.get(language)

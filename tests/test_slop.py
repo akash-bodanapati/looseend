@@ -63,7 +63,14 @@ def test_slop002_js_declared_negative(tmp_path):
 
 # SLOP003: Duplicate blocks
 def test_slop003_duplicate_blocks_positive(tmp_path):
-    block = "line_one = 1\nline_two = 2\nline_three = 3\nline_four = 4\nline_five = 5\nline_six = 6\n"
+    block = (
+        "subtotal = price * quantity\n"
+        "discount = subtotal * discount_rate\n"
+        "taxable = subtotal - discount\n"
+        "tax_amount = taxable * tax_rate\n"
+        "total = taxable + tax_amount\n"
+        "receipt_lines.append(total)\n"
+    )
     p1 = tmp_path / "file1.py"
     p2 = tmp_path / "file2.py"
     p1.write_text(block, encoding="utf-8")
@@ -131,3 +138,13 @@ def test_slop005_js_console_in_test_negative(tmp_path):
     content = "describe('app', () => {\n    console.log('running test');\n});\n"
     f = _run(tmp_path, "test/app.spec.js", content)
     assert not any(x.rule_id == "SLOP005" for x in f)
+def test_slop003_short_boilerplate_not_reported(tmp_path):
+    block = "a = 1\nb = 2\nc = 3\nd = 4\ne = 5\nf = 6\n"
+    p1 = tmp_path / "file1.py"
+    p2 = tmp_path / "file2.py"
+    p1.write_text(block, encoding="utf-8")
+    p2.write_text(block, encoding="utf-8")
+    a = SlopAnalyzer()
+    list(a.analyze(p1, block, "python", "file1.py"))
+    list(a.analyze(p2, block, "python", "file2.py"))
+    assert not [x for x in a.finalize() if x.rule_id == "SLOP003"]
