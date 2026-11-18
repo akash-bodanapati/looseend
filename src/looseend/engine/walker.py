@@ -78,8 +78,9 @@ def _load_ignore_patterns(path: Path) -> list[str]:
                 line = line.strip()
                 if line and not line.startswith("#"):
                     patterns.append(line)
-        except OSError:
-            pass
+        except OSError as exc:
+            # unreadable ignore file: keep the patterns read so far (returned below), do not abort the scan
+            _ = exc
     return patterns
 
 
@@ -88,14 +89,21 @@ def _matches_gitignore(rel_path: str, patterns: list[str]) -> bool:
     parts = rel_posix.split("/")
     name = parts[-1]
     for pattern in patterns:
-        p = pattern.lstrip("/")
+        p = pattern.replace("\\", "/").lstrip("/")
         if p.endswith("/"):
             p = p.rstrip("/")
-            for part in parts[:-1]:
-                if fnmatch.fnmatch(part, p):
+            if "/" in p:
+                # multi-segment directory pattern, anchored at the root:
+                # matches the directory itself and everything under it
+                for i in range(1, len(parts) + 1):
+                    if fnmatch.fnmatch("/".join(parts[:i]), p):
+                        return True
+            else:
+                for part in parts[:-1]:
+                    if fnmatch.fnmatch(part, p):
+                        return True
+                if fnmatch.fnmatch(name, p):
                     return True
-            if fnmatch.fnmatch(name, p):
-                return True
         elif "/" in p:
             if fnmatch.fnmatch(rel_posix, p):
                 return True

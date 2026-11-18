@@ -57,8 +57,9 @@ def _get_declared_deps(root: Path) -> set[str]:
                 if line and not line.startswith(("#", "-")):
                     pkg = re.split(r"[>=<!@;#\s\[]", line)[0].lower().replace("-", "_")
                     deps.add(pkg)
-        except OSError:
-            pass
+        except OSError as exc:
+            # unreadable requirements.txt: keep deps gathered so far, continue with pyproject deps
+            _ = exc
 
     for dep in get_project_deps(root):
         pkg = re.split(r"[>=<!@;#\s\[]", dep)[0].lower().replace("-", "_")
@@ -189,8 +190,9 @@ class SlopAnalyzer(Analyzer):
                 for entry in src.iterdir():
                     if entry.is_dir() and (entry / "__init__.py").exists():
                         local_mods.add(entry.name.lower())
-        except OSError:
-            pass
+        except OSError as exc:
+            # unreadable project dir: use the local modules found so far, import check continues
+            _ = exc
 
         import_re = re.compile(r"^(?:import|from)\s+([A-Za-z_][A-Za-z0-9_]*)")
         for lineno, line in enumerate(source.splitlines(), 1):

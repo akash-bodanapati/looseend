@@ -50,8 +50,9 @@ def _has_runtime_deps(root: Path) -> bool:
             data = json.loads(pkg_json.read_text(encoding="utf-8", errors="replace"))
             if data.get("dependencies"):
                 return True
-        except Exception:
-            pass
+        except Exception as exc:
+            # unreadable or malformed package.json: treat as no declared deps, check other manifests
+            _ = exc
 
     go_mod = root / "go.mod"
     if go_mod.exists():
@@ -62,8 +63,9 @@ def _has_runtime_deps(root: Path) -> bool:
                     return True
                 if stripped and not stripped.startswith(("//", "module ", "go ", "require (", ")")) and " " in stripped:
                     return True
-        except OSError:
-            pass
+        except OSError as exc:
+            # unreadable go.mod: fall through to the next manifest
+            _ = exc
 
     pom_xml = root / "pom.xml"
     if pom_xml.exists():
@@ -71,8 +73,9 @@ def _has_runtime_deps(root: Path) -> bool:
             content = pom_xml.read_text(encoding="utf-8", errors="replace")
             if "<dependency>" in content:
                 return True
-        except OSError:
-            pass
+        except OSError as exc:
+            # unreadable pom.xml: fall through to the next manifest
+            _ = exc
 
     cargo_toml = root / "Cargo.toml"
     if cargo_toml.exists():
@@ -80,8 +83,9 @@ def _has_runtime_deps(root: Path) -> bool:
             content = cargo_toml.read_text(encoding="utf-8", errors="replace")
             if "[dependencies]" in content:
                 return True
-        except OSError:
-            pass
+        except OSError as exc:
+            # unreadable Cargo.toml: fall through to the next manifest
+            _ = exc
 
     gemfile = root / "Gemfile"
     if gemfile.exists():
@@ -89,8 +93,9 @@ def _has_runtime_deps(root: Path) -> bool:
             for line in gemfile.read_text(encoding="utf-8", errors="replace").splitlines():
                 if re.match(r'^\s*gem\s+["\']', line):
                     return True
-        except OSError:
-            pass
+        except OSError as exc:
+            # unreadable Gemfile: fall through to the final "no deps" result
+            _ = exc
 
     return False
 
@@ -335,8 +340,9 @@ class GapAnalyzer(Analyzer):
                         if any(ci.iterdir()):
                             has_ci = True
                             break
-                    except OSError:
-                        pass
+                    except OSError as exc:
+                        # unreadable CI dir: treat as no CI here and check the next candidate
+                        _ = exc
                 else:
                     has_ci = True
                     break

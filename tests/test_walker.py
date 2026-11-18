@@ -53,3 +53,23 @@ def test_inline_ignore_wildcard():
     ignores = parse_inline_ignores(source)
     assert should_ignore(1, "SEC003", ignores)
     assert should_ignore(1, "SEC001", ignores)
+
+
+def test_dir_pattern_backslash_path_matches_nested_file():
+    from looseend.engine.walker import _matches_gitignore
+    assert _matches_gitignore("examples\\vulnerable-app\\app.py", ["examples/vulnerable-app/"])
+
+
+def test_dir_pattern_matches_the_directory_itself():
+    from looseend.engine.walker import _matches_gitignore
+    assert _matches_gitignore("examples/vulnerable-app", ["examples/vulnerable-app/"])
+
+
+def test_dir_pattern_does_not_match_sibling_dir():
+    from looseend.engine.walker import _matches_gitignore
+    assert not _matches_gitignore("examples/clean-app/app.py", ["examples/vulnerable-app/"])
+
+
+def test_single_segment_dir_pattern_still_matches_any_depth():
+    from looseend.engine.walker import _matches_gitignore
+    assert _matches_gitignore("src/build/out.py", ["build/"])
