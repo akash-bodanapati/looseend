@@ -1,0 +1,34 @@
+name: LooseEnd
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan (self-scan, fail on high or critical)
+        uses: ./
+        with:
+          fail-on: high
+
+      - name: Generate SARIF report
+        if: always()
+        uses: ./
+        with:
+          format: sarif
+          output: looseend.sarif
+          fail-on: none
+
+      - name: Upload SARIF to code scanning
+        if: always() && github.event.pull_request.head.repo.fork != true
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: looseend.sarif
