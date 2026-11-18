@@ -155,3 +155,44 @@ def test_gap006_lockfile_present_negative(tmp_path):
     (repo / "package-lock.json").write_text('{"name": "app", "lockfileVersion": 3}\n')
     f = _run(repo, "dummy.js", "const x = 1;\n", root=repo)
     assert not any(x.rule_id == "GAP006" and "lockfile" in x.message.lower() for x in f)
+
+
+def _gap001_findings(tmp_path, name, language, content):
+    from pathlib import Path
+    from looseend.analyzers.gap import GapAnalyzer
+    p = Path(tmp_path) / name
+    p.write_text(content, encoding="utf-8")
+    a = GapAnalyzer(Path(tmp_path))
+    return [f for f in a.analyze(p, content, language, name) if f.rule_id == "GAP001"]
+
+
+def test_gap001_python_comment_flagged(tmp_path):
+    assert _gap001_findings(tmp_path, "a.py", "python", "x = 1  # TODO: fix\n")
+
+
+def test_gap001_python_string_not_flagged(tmp_path):
+    assert not _gap001_findings(tmp_path, "a.py", "python", 'msg = "TODO: not a comment"\n')
+
+
+def test_gap001_js_line_comment_flagged(tmp_path):
+    assert _gap001_findings(tmp_path, "a.js", "javascript", "// FIXME: later\nlet x = 1;\n")
+
+
+def test_gap001_js_block_comment_flagged(tmp_path):
+    assert _gap001_findings(tmp_path, "a.js", "javascript", "/*\n HACK: temporary\n*/\nlet x = 1;\n")
+
+
+def test_gap001_js_string_not_flagged(tmp_path):
+    assert not _gap001_findings(tmp_path, "a.js", "javascript", 'const s = "TODO later";\n')
+
+
+def test_gap001_markdown_not_flagged(tmp_path):
+    assert not _gap001_findings(tmp_path, "README.md", "markdown", "- TODO: write docs\n")
+
+
+def test_gap001_json_not_flagged(tmp_path):
+    assert not _gap001_findings(tmp_path, "a.json", "json", '{"note": "TODO: set later"}\n')
+
+
+def test_gap001_txt_not_flagged(tmp_path):
+    assert not _gap001_findings(tmp_path, "a.txt", "text", "TODO: something\n")

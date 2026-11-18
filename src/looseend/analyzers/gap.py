@@ -23,7 +23,50 @@ _FUNC_START: dict[str, re.Pattern] = {
     "java": re.compile(r"^\s+(?:public|private|protected|static|final|\w+)\s+\w+\s+\w+\s*\("),
     "go": re.compile(r"^func\s+"),
 }
+# Comment markers per language: (line comment markers, supports /* */ block comments)
+_COMMENT_SYNTAX: dict[str, tuple[tuple[str, ...], bool]] = {
+    "python": (("#",), False),
+    "ruby": (("#",), False),
+    "shell": (("#",), False),
+    "yaml": (("#",), False),
+    "toml": (("#",), False),
+    "conf": (("#", ";"), False),
+    "env": (("#",), False),
+    "dockerfile": (("#",), False),
+    "javascript": (("//",), True),
+    "typescript": (("//",), True),
+    "java": (("//",), True),
+    "go": (("//",), True),
+    "c": (("//",), True),
+    "cpp": (("//",), True),
+    "csharp": (("//",), True),
+    "rust": (("//",), True),
+    "php": (("//", "#"), True),
+    "css": ((), True),
+    "sql": (("--",), True),
+}
 
+
+def _comment_text(line: str, markers: tuple[str, ...]) -> str:
+    """Return the comment portion of a line, ignoring markers inside quotes; '' if none."""
+    quote = ""
+    i = 0
+    while i < len(line):
+        ch = line[i]
+        if quote:
+            if ch == "\\":
+                i += 2
+                continue
+            if ch == quote:
+                quote = ""
+        elif ch in ("'", '"', "`"):
+            quote = ch
+        else:
+            for m in markers:
+                if line.startswith(m, i):
+                    return line[i + len(m):]
+        i += 1
+    return ""
 
 def _has_runtime_deps(root: Path) -> bool:
     """Check if project explicitly declares runtime production dependencies."""
@@ -143,7 +186,7 @@ class GapAnalyzer(Analyzer):
         elif self._root.is_file():
             self._root = self._root.parent
 
-        yield from self._gap001(source, rel_path)
+        yield from self._gap001(source,language, rel_path)
         if language == "python":
             yield from self._gap002(source, rel_path)
             yield from self._gap003_python(source, rel_path)
@@ -156,18 +199,52 @@ class GapAnalyzer(Analyzer):
             yield from self._gap006(rel_path)
             self._hygiene_done = True
 
-    def _gap001(self, source: str, rel_path: str) -> Iterator[Finding]:
+    def _gap001(self, source: str, language: str, rel_path: str) -> Iterator[Finding]:
+        """Flag TODO/FIXME/etc. only inside real comments, never in strings, markdown, JSON or .txt."""
+        syntax = _COMMENT_SYNTAX.get(language)
+        if syntax is None:
+            return  # markdown, json, text, xml, html...: no reliable comment syntax, so do not flag
+        markers, has_block = syntax
+        in_block = False
         for lineno, line in enumerate(source.splitlines(), 1):
-            m = _TODO_RE.search(line)
-            if m:
-                yield self._make(
-                    "GAP001", Severity.INFO, Confidence.HIGH,
-                    rel_path, lineno,
-                    f"{m.group(1)} comment — unfinished work",
-                    line.strip()[:100],
-                    "Resolve or create a tracked issue",
-                )
-
+            texts: list[str] = []
+            if has_block:
+                rest = line
+                while rest:
+                    if in_block:
+                        end = rest.find("*/")
+                        if end == -1:
+                            texts.append(rest)
+                            rest = ""
+                        else:
+                            texts.append(rest[:end])
+                            rest = rest[end + 2:]
+                            in_block = False
+                    else:
+                        start = rest.find("/*")
+                        line_c = _comment_text(rest, markers)
+                        if start != -1 and (not line_c or start < len(rest) - len(line_c)):
+                            in_block = True
+                            rest = rest[start + 2:]
+                        else:
+                            if line_c:
+                                texts.append(line_c)
+                            rest = ""
+            else:
+                comment = _comment_text(line, markers)
+                if comment:
+                    texts.append(comment)
+            for text in texts:
+                m = _TODO_RE.search(text)
+                if m:
+                    yield self._make(
+                        "GAP001", Severity.INFO, Confidence.HIGH,
+                        rel_path, lineno,
+                        f"{m.group(1)} comment — unfinished work",
+                        line.strip()[:100],
+                        "Resolve or create a tracked issue",
+                    )
+                    break
     def _gap002(self, source: str, rel_path: str) -> Iterator[Finding]:
         for lineno, line in enumerate(source.splitlines(), 1):
             if _BARE_EXCEPT_RE.match(line):
