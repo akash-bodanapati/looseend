@@ -1,5 +1,9 @@
 # LooseEnd
 
+[![CI](https://github.com/akash-bodanapati/looseend/actions/workflows/ci.yml/badge.svg)](https://github.com/akash-bodanapati/looseend/actions/workflows/ci.yml)
+[![LooseEnd](https://github.com/akash-bodanapati/looseend/actions/workflows/looseend.yml/badge.svg)](https://github.com/akash-bodanapati/looseend/actions/workflows/looseend.yml)
+
+
 **A language-agnostic CLI agent that finds the loose ends in a codebase: security issues, AI slop and coding gaps, whatever the architecture or stack.**
 
 ```bash
