@@ -5,3 +5,13 @@ examples/bad_python.py
 
 # intentionally vulnerable benchmark repo (seeded flaws, see tests/test_benchmark.py)
 examples/vulnerable-app/
+
+# rule table: messages and regexes that describe flaws, not flaws themselves
+src/looseend/analyzers/security.py
+
+# test fixtures: flawed code held in string literals to exercise the rules
+tests/test_security.py
+tests/test_runner.py
+tests/test_reporters.py
+tests/test_slop.py
+tests/test_gap.py
