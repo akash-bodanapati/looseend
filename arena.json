@@ -1,7 +1,7 @@
 {
-  "title": "LooseEnd",
-  "description": "Language-agnostic CLI agent that scans codebases for security issues, AI slop, and coding gaps.",
-  "track": "ai-triage",
-  "repo": "https://github.com/akash-bodanapati/looseend",
-  "repo_url": "https://github.com/akash-bodanapati/looseend"
+  "language": "python",
+  "install": "python -m pip install -r requirements.txt && python -m pip install .",
+  "test": "python -m pytest -q",
+  "start": "looseend scan .",
+  "port": 8080
 }
