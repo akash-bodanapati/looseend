@@ -22,6 +22,7 @@ def run_scan(
     min_idx = _SEV_ORDER.get(min_severity.value, 4) if min_severity else 4
 
     rel_base = root if root.is_dir() else root.parent
+    file_ignores: dict[str, dict[int, set[str]]] = {}
     for file_path, language in walk_files(root):
         rel_path = str(file_path.relative_to(rel_base))
         try:
@@ -32,6 +33,7 @@ def run_scan(
             continue
 
         ignores = parse_inline_ignores(source)
+        file_ignores[rel_path] = ignores
         result.files_scanned += 1
 
         for analyzer in analyzers:
@@ -55,6 +57,12 @@ def run_scan(
         if hasattr(analyzer, "finalize"):
             try:
                 for finding in analyzer.finalize():
+                    if should_ignore(
+                        finding.line,
+                        finding.rule_id,
+                        file_ignores.get(finding.file, {}),
+                    ):
+                        continue
                     if _SEV_ORDER.get(finding.severity.value, 4) > min_idx:
                         continue
                     result.findings.append(finding)

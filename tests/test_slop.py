@@ -1,5 +1,6 @@
 """Slop analyzer tests — positive and negative cases per rule."""
 from pathlib import Path
+from looseend.engine.runner import run_scan
 from looseend.analyzers.slop import SlopAnalyzer
 
 
@@ -148,3 +149,22 @@ def test_slop003_short_boilerplate_not_reported(tmp_path):
     list(a.analyze(p1, block, "python", "file1.py"))
     list(a.analyze(p2, block, "python", "file2.py"))
     assert not [x for x in a.finalize() if x.rule_id == "SLOP003"]
+def _write_dup_pair(tmp_path, comment=""):
+    lines = [f"value_{i} = compute_{i}(x)" for i in range(10)]
+    lines[0] += comment
+    text = "\n".join(lines) + "\n"
+    (tmp_path / "a.py").write_text(text, encoding="utf-8")
+    (tmp_path / "b.py").write_text(text, encoding="utf-8")
+
+
+def test_slop003_reported_without_ignore(tmp_path):
+    _write_dup_pair(tmp_path)
+    result = run_scan(tmp_path, analyzers=[SlopAnalyzer()])
+    files = {f.file for f in result.findings if f.rule_id == "SLOP003"}
+    assert files == {"a.py", "b.py"}
+
+
+def test_inline_ignore_suppresses_slop003(tmp_path):
+    _write_dup_pair(tmp_path, "  # looseend: ignore[SLOP003]")
+    result = run_scan(tmp_path, analyzers=[SlopAnalyzer()])
+    assert not [f for f in result.findings if f.rule_id == "SLOP003"]

@@ -91,7 +91,7 @@ class SlopAnalyzer(Analyzer):
 
     def analyze(
         self,
-        path: Path,
+        path: Path, # looseend: ignore[SLOP003]
         source: str,
         language: str,
         rel_path: str,
